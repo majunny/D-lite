@@ -14,13 +14,23 @@ PATH_COLOR=(155,89,182); AGENT_COLOR=(231,76,60); TEXT_COLOR=(33,33,33)
 W = COLS*CELL + (COLS+1)*MARGIN
 H = ROWS*CELL + (ROWS+1)*MARGIN
 
+# ===== 프리셋 벽 정의(원하는 대로 수정) =====
+PRESET_WALLS = [
+    # 중앙에 세로 얇은 벽
+    {'kind':'vline', 'c': 15, 'r0': 3, 'r1': 20},
+    # 위쪽 가로 얇은 벽
+    {'kind':'hline', 'r': 5, 'c0': 5, 'c1': 20},
+    # 좌하단 직사각형 벽(덩어리)
+    {'kind':'rect', 'r0': 14, 'c0': 3, 'r1': 18, 'c1': 7},
+]
+
 pygame.init()
 screen=pygame.display.set_mode((W,H+40))
 clock=pygame.time.Clock()
 font=pygame.font.SysFont("Arial",16)
 
 # ---------- 상태 ----------
-blocked=[[False]*COLS for _ in range(ROWS)]
+blocked = build_blocked_with_presets(ROWS, COLS, PRESET_WALLS)
 start=(ROWS//2,2); goalA=(ROWS//2-6, COLS-4); goalB=(ROWS//2+6, COLS-4)
 mode=1
 planning=False
@@ -50,7 +60,8 @@ while running:
             elif e.key==pygame.K_r:
                 agent_pos=start; step_timer=0.0
             elif e.key==pygame.K_c:
-                blocked=[[False]*COLS for _ in range(ROWS)]
+                # 프리셋으로 다시 세팅 (벽 유지)
+                blocked = build_blocked_with_presets(ROWS, COLS, PRESET_WALLS)
                 start=(ROWS//2,2); goalA=(ROWS//2-6, COLS-4); goalB=(ROWS//2+6, COLS-4)
                 planner=None; plan_gen=None; planning=False; path=[]; active_goal_name=None
                 agent_pos=start; step_timer=0.0

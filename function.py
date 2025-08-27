@@ -6,7 +6,7 @@ INF=10**9
 def inb(r,c, ROWS, COLS): return 0<=r<ROWS and 0<=c<COLS
 def manhattan(a,b): return abs(a[0]-b[0])+abs(a[1]-b[1])
 
-# ---------- 빠른 목표 선택용 A* (길이만) ----------
+# ---------- 빠른 목표 선택용 A* (길이만) ----------길찾기
 def astar_len(blocked, start, goal, ROWS, COLS):
     if blocked[goal[0]][goal[1]]: return INF
     g = [[INF]*COLS for _ in range(ROWS)]
@@ -25,7 +25,7 @@ def astar_len(blocked, start, goal, ROWS, COLS):
                     heapq.heappush(pq,(ncst+manhattan((nr,nc),goal), ncst, (nr,nc)))
     return INF
 
-# ---------- D* Lite ----------
+# ---------- D* Lite ----------길찾기
 class DStarLite:
     def __init__(self, blocked, start, goal, ROWS, COLS):
         self.blocked=blocked; self.start=start; self.goal=goal
@@ -153,3 +153,34 @@ def choose_goal_quick(blocked, start, goalA, goalB, ROWS, COLS):
     lenB = astar_len(blocked, start, goalB, ROWS, COLS)
     if lenA <= lenB: return ("A", goalA)
     else: return ("B", goalB)
+
+# ---------- 프리셋 벽 생성 함수 ----------
+def build_blocked_with_presets(ROWS, COLS, presets):
+    blocked = [[False]*COLS for _ in range(ROWS)]
+    def inb(r,c): return 0 <= r < ROWS and 0 <= c < COLS
+
+    for w in presets:
+        k = w.get('kind')
+        if k == 'rect':
+            r0, c0, r1, c1 = w['r0'], w['c0'], w['r1'], w['c1']
+            if r0 > r1:
+                r0, r1 = r1, r0
+            if c0 > c1: 
+                c0, c1 = c1, c0
+            for r in range(r0, r1+1):
+                for c in range(c0, c1+1):
+                    if inb(r,c): blocked[r][c] = True
+        elif k == 'hline':
+            r, c0, c1 = w['r'], w['c0'], w['c1']
+            if c0 > c1: c0, c1 = c1, c0
+            for c in range(c0, c1+1):
+                if inb(r,c): blocked[r][c] = True
+        elif k == 'vline':
+            c, r0, r1 = w['c'], w['r0'], w['r1']
+            if r0 > r1: r0, r1 = r1, r0
+            for r in range(r0, r1+1):
+                if inb(r,c): blocked[r][c] = True
+        else:
+            # 필요하면 다른 도형(kind)을 추가해도 됨
+            pass
+    return blocked
