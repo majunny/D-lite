@@ -6,7 +6,7 @@ INF=10**9
 def inb(r,c, ROWS, COLS): return 0<=r<ROWS and 0<=c<COLS
 def manhattan(a,b): return abs(a[0]-b[0])+abs(a[1]-b[1])
 
-# ---------- 빠른 목표 선택용 A* (길이만) ----------길찾기
+# ---------- 빠른 목표 선택용 A* (길이만) ----------
 def astar_len(blocked, start, goal, ROWS, COLS):
     if blocked[goal[0]][goal[1]]: return INF
     g = [[INF]*COLS for _ in range(ROWS)]
@@ -25,7 +25,7 @@ def astar_len(blocked, start, goal, ROWS, COLS):
                     heapq.heappush(pq,(ncst+manhattan((nr,nc),goal), ncst, (nr,nc)))
     return INF
 
-# ---------- D* Lite ----------길찾기
+# ---------- D* Lite ----------
 class DStarLite:
     def __init__(self, blocked, start, goal, ROWS, COLS):
         self.blocked=blocked; self.start=start; self.goal=goal
@@ -112,7 +112,10 @@ def rc_center(r,c, CELL, MARGIN):
     y=r*(CELL+MARGIN)+MARGIN + CELL//2
     return x,y
 
-def draw_all(screen, blocked, path, goalA, goalB, start, agent_pos, active_goal_name, mode, ROWS, COLS, CELL, MARGIN, BG, GRID, WALL, START, GOAL_A, GOAL_B, PATH, AGENT, TEXT, W, H, font):
+def draw_all(screen, blocked, path, goals, start, agent_pos, active_goal_idx,
+             mode, ROWS, COLS, CELL, MARGIN, BG, GRID, WALL,
+             GOAL_COLORS, START_COLOR, PATH_COLOR, AGENT_COLOR, TEXT_COLOR,
+             W, H, font):
     screen.fill(BG)
     # 격자/장애물
     for r in range(ROWS):
@@ -123,23 +126,27 @@ def draw_all(screen, blocked, path, goalA, goalB, start, agent_pos, active_goal_
     # 경로 시각화
     for r,c in path:
         x,y,_,_ = rc_to_cellrect(r,c, CELL, MARGIN)
-        pygame.draw.rect(screen, PATH, (x+4,y+4,CELL-8,CELL-8), border_radius=4)
-    # 목표/시작
-    for g,col in [(goalA,GOAL_A),(goalB,GOAL_B)]:
-        x,y,_,_=rc_to_cellrect(*g, CELL, MARGIN)
-        pygame.draw.rect(screen,col,(x+2,y+2,CELL-4,CELL-4),border_radius=4)
+        pygame.draw.rect(screen, PATH_COLOR, (x+4,y+4,CELL-8,CELL-8), border_radius=4)
+    # 목표들
+    for i, g in enumerate(goals):
+        color = GOAL_COLORS[i % len(GOAL_COLORS)]
+        x,y,_,_ = rc_to_cellrect(*g, CELL, MARGIN)
+        pygame.draw.rect(screen, color, (x+2,y+2,CELL-4,CELL-4), border_radius=4)
+        if active_goal_idx == i:
+            pygame.draw.rect(screen, (0,0,0), (x+1,y+1,CELL-2,CELL-2), width=2, border_radius=5)
+    # 시작점
     x,y,_,_=rc_to_cellrect(*start, CELL, MARGIN)
-    pygame.draw.rect(screen,START,(x+2,y+2,CELL-4,CELL-4),border_radius=4)
-    # 에이전트(격자 중심에 원)
+    pygame.draw.rect(screen, START_COLOR,(x+2,y+2,CELL-4,CELL-4),border_radius=4)
+    # 에이전트
     cx,cy=rc_center(*agent_pos, CELL, MARGIN)
-    pygame.draw.circle(screen, AGENT, (cx,cy), CELL//2-3)
+    pygame.draw.circle(screen, AGENT_COLOR, (cx,cy), CELL//2-3)
 
     # 상태바
     bar=pygame.Rect(0,H,W,40); pygame.draw.rect(screen,(250,250,250),bar)
-    msg=f"[1]Start [2]GoalA [3]GoalB [4]Obstacle | [SPACE] Plan  [R] Reset  [C] Clear | Active Goal: {active_goal_name or '-'}"
-    screen.blit(font.render(msg,True,TEXT),(10,H+10))
-    mode_msg={1:"Place START",2:"Place GOAL A",3:"Place GOAL B",4:"Draw Obstacles"}[mode]
-    screen.blit(font.render(f"Mode: {mode_msg}",True,TEXT),(10,H+22))
+    msg=f"[1]Start [2]Edit Goal (G to cycle) [4]Obstacle | [SPACE] Plan  [R] Reset  [C] Clear | Active Goal: {(active_goal_idx+1) if active_goal_idx is not None else '-'} / {len(goals)}"
+    screen.blit(font.render(msg,True,TEXT_COLOR),(10,H+10))
+    mode_label = {1:"Place START", 2:"Edit GOAL (press G to select)", 4:"Draw Obstacles"}.get(mode, "")
+    screen.blit(font.render(f"Mode: {mode_label}",True,TEXT_COLOR),(10,H+22))
     pygame.display.flip()
 
 def cell_at_pos(px,py, H, CELL, MARGIN, ROWS, COLS):
@@ -148,39 +155,44 @@ def cell_at_pos(px,py, H, CELL, MARGIN, ROWS, COLS):
     if not inb(r,c, ROWS, COLS): return None
     return (r,c)
 
-def choose_goal_quick(blocked, start, goalA, goalB, ROWS, COLS):
-    lenA = astar_len(blocked, start, goalA, ROWS, COLS)
-    lenB = astar_len(blocked, start, goalB, ROWS, COLS)
-    if lenA <= lenB: return ("A", goalA)
-    else: return ("B", goalB)
+def choose_best_goal(blocked, start, goals, ROWS, COLS):
+    """
+    여러 개 goals 중 A* 길이가 가장 짧은 목표를 고른다.
+    returns: (best_idx, best_goal_rc, best_len) 또는 (None, None, INF)
+    """
+    best_idx, best_goal, best_len = None, None, INF
+    for i, g in enumerate(goals):
+        L = astar_len(blocked, start, g, ROWS, COLS)
+        if L < best_len:
+            best_len = L
+            best_goal = g
+            best_idx = i
+    return best_idx, best_goal, best_len
 
 # ---------- 프리셋 벽 생성 함수 ----------
 def build_blocked_with_presets(ROWS, COLS, presets):
     blocked = [[False]*COLS for _ in range(ROWS)]
-    def inb(r,c): return 0 <= r < ROWS and 0 <= c < COLS
+    def _inb(r,c): return 0 <= r < ROWS and 0 <= c < COLS
 
     for w in presets:
         k = w.get('kind')
         if k == 'rect':
             r0, c0, r1, c1 = w['r0'], w['c0'], w['r1'], w['c1']
-            if r0 > r1:
-                r0, r1 = r1, r0
-            if c0 > c1: 
-                c0, c1 = c1, c0
+            if r0 > r1: r0, r1 = r1, r0
+            if c0 > c1: c0, c1 = c1, c0
             for r in range(r0, r1+1):
                 for c in range(c0, c1+1):
-                    if inb(r,c): blocked[r][c] = True
+                    if _inb(r,c): blocked[r][c] = True
         elif k == 'hline':
             r, c0, c1 = w['r'], w['c0'], w['c1']
             if c0 > c1: c0, c1 = c1, c0
             for c in range(c0, c1+1):
-                if inb(r,c): blocked[r][c] = True
+                if _inb(r,c): blocked[r][c] = True
         elif k == 'vline':
             c, r0, r1 = w['c'], w['r0'], w['r1']
             if r0 > r1: r0, r1 = r1, r0
             for r in range(r0, r1+1):
-                if inb(r,c): blocked[r][c] = True
+                if _inb(r,c): blocked[r][c] = True
         else:
-            # 필요하면 다른 도형(kind)을 추가해도 됨
             pass
     return blocked
