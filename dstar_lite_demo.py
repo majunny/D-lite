@@ -1,24 +1,32 @@
-import sys, pygame, random
+import sys, pygame
 from function import *
 
 # ===== 설정 =====
 CELL = 22
-ROWS = 25
-COLS = 35
+ROWS = 35
+COLS = 70
 MARGIN = 1
 FPS = 60
-STEP_INTERVAL = 0.3  # 0.3초마다 격자 한 칸 이동
-PLANNER_STEPS_PER_FRAME = 1200  # 프레임당 D* Lite 처리 스텝
+STEP_INTERVAL = 0.3
+PLANNER_STEPS_PER_FRAME = 10000
+REPLAN_CHECK_INTERVAL = 0.5
+REPLAN_PERIODIC_CHECK = 1.0
 
-# 여러 개 도착지 프리셋 (원하는 좌표로 바꿔줘)
+PRESET_START = (ROWS // 2, 2)
+
 PRESET_GOALS = [
-    (9, 9),
-    (6, 12),
-    (19, 24),
-    (7, 24)
+    (12,12),
+    (16,12),
+    (21,12),
+    (25,12),
+    (25,24),
+    (21,24),
+    #2층 계단지점  -35
+    (9, 47),
+    (29,47),
+    (16,59),
+    (29,59),
 ]
-
-# 색상
 BG = (245, 246, 248)
 GRID = (220, 223, 230)
 WALL = (60, 72, 88)
@@ -29,43 +37,15 @@ FIRE_COLOR = (231, 100, 20)
 TEXT_COLOR = (33, 33, 33)
 
 GOAL_COLORS = [
-    (0, 141, 98),   # 초록
-    (241, 196, 15),   # 노랑
-    (250, 153, 204),   # 분홍
-    (119, 109, 97),    # 갈색
-    (153, 134, 179),    # 보라
+    (0, 141, 98),
+    (241, 196, 15),
+    (250, 153, 204),
+    (119, 109, 97),
+    (153, 134, 179),
 ]
 
-# ===== 프리셋 벽 정의(원하는 대로 수정) =====
-PRESET_WALLS = [
-    # 세로 얇은 벽
-    {'kind': 'vline', 'c': 25, 'r0': 7, 'r1': 19},
-    {'kind': 'vline', 'c': 23, 'r0': 7, 'r1': 8},
-    {'kind': 'vline', 'c': 23, 'r0': 17, 'r1': 19},
-    {'kind': 'vline', 'c': 23, 'r0': 10, 'r1': 14},
-    {'kind': 'vline', 'c': 13, 'r0': 6, 'r1': 7},
-    {'kind': 'vline', 'c': 11, 'r0': 6, 'r1': 8},
-    {'kind': 'vline', 'c': 11, 'r0': 11, 'r1': 18},
-    {'kind': 'vline', 'c': 13, 'r0': 12, 'r1': 14},
-    # 가로 얇은 벽
-    {'kind': 'hline', 'r': 8, 'c0': 13, 'c1': 22},
-    {'kind': 'hline', 'r': 11, 'c0': 13, 'c1': 23},
-    {'kind': 'hline', 'r': 15, 'c0': 13, 'c1': 23},
-    {'kind': 'hline', 'r': 8, 'c0': 9, 'c1': 10},
-    {'kind': 'hline', 'r': 10, 'c0': 9, 'c1': 11},
-    {'kind': 'hline', 'r': 18, 'c0': 12, 'c1': 22},
-    # ---점
-    {'kind': 'hline', 'r': 10, 'c0': 13, 'c1': 13},
-    {'kind': 'hline', 'r': 10, 'c0': 15, 'c1': 15},
-    {'kind': 'hline', 'r': 10, 'c0': 17, 'c1': 17},
-    {'kind': 'hline', 'r': 10, 'c0': 19, 'c1': 19},
-    {'kind': 'hline', 'r': 10, 'c0': 21, 'c1': 21},
-    {'kind': 'hline', 'r': 17, 'c0': 13, 'c1': 13},
-    {'kind': 'hline', 'r': 17, 'c0': 15, 'c1': 15},
-    {'kind': 'hline', 'r': 17, 'c0': 17, 'c1': 17},
-    {'kind': 'hline', 'r': 17, 'c0': 19, 'c1': 19},
-    {'kind': 'hline', 'r': 17, 'c0': 21, 'c1': 21}
-]
+PRESET_WALLS = [{'kind': 'hline', 'r': 0, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 1, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 2, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 3, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 4, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 5, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 6, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 7, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 8, 'c0': 11, 'c1': 13}, {'kind': 'hline', 'r': 8, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 8, 'c0': 46, 'c1': 48}, {'kind': 'hline', 'r': 9, 'c0': 8, 'c1': 11}, {'kind': 'hline', 'r': 9, 'c0': 13, 'c1': 17}, {'kind': 'hline', 'r': 9, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 9, 'c0': 43, 'c1': 46}, {'kind': 'hline', 'r': 9, 'c0': 48, 'c1': 52}, {'kind': 'hline', 'r': 10, 'c0': 8, 'c1': 8}, {'kind': 'hline', 'r': 10, 'c0': 17, 'c1': 17}, {'kind': 'hline', 'r': 10, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 10, 'c0': 43, 'c1': 43}, {'kind': 'hline', 'r': 10, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 11, 'c0': 8, 'c1': 8}, {'kind': 'hline', 'r': 11, 'c0': 17, 'c1': 17}, {'kind': 'hline', 'r': 11, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 11, 'c0': 43, 'c1': 43}, {'kind': 'hline', 'r': 11, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 12, 'c0': 8, 'c1': 11}, {'kind': 'hline', 'r': 12, 'c0': 13, 'c1': 17}, {'kind': 'hline', 'r': 12, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 12, 'c0': 43, 'c1': 46}, {'kind': 'hline', 'r': 12, 'c0': 48, 'c1': 52}, {'kind': 'hline', 'r': 13, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 13, 'c0': 44, 'c1': 44}, {'kind': 'hline', 'r': 13, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 13, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 13, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 14, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 14, 'c0': 44, 'c1': 44}, {'kind': 'hline', 'r': 14, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 14, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 14, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 15, 'c0': 23, 'c1': 25}, {'kind': 'hline', 'r': 15, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 15, 'c0': 44, 'c1': 44}, {'kind': 'hline', 'r': 15, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 15, 'c0': 58, 'c1': 60}, {'kind': 'hline', 'r': 16, 'c0': 9, 'c1': 11}, {'kind': 'hline', 'r': 16, 'c0': 13, 'c1': 17}, {'kind': 'hline', 'r': 16, 'c0': 21, 'c1': 23}, {'kind': 'hline', 'r': 16, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 16, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 16, 'c0': 44, 'c1': 44}, {'kind': 'hline', 'r': 16, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 16, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 16, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 16, 'c0': 56, 'c1': 58}, {'kind': 'hline', 'r': 16, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 17, 'c0': 9, 'c1': 9}, {'kind': 'hline', 'r': 17, 'c0': 13, 'c1': 13}, {'kind': 'hline', 'r': 17, 'c0': 17, 'c1': 17}, {'kind': 'hline', 'r': 17, 'c0': 21, 'c1': 21}, {'kind': 'hline', 'r': 17, 'c0': 23, 'c1': 23}, {'kind': 'hline', 'r': 17, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 17, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 17, 'c0': 44, 'c1': 44}, {'kind': 'hline', 'r': 17, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 17, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 17, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 17, 'c0': 56, 'c1': 56}, {'kind': 'hline', 'r': 17, 'c0': 58, 'c1': 58}, {'kind': 'hline', 'r': 17, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 18, 'c0': 8, 'c1': 11}, {'kind': 'hline', 'r': 18, 'c0': 13, 'c1': 13}, {'kind': 'hline', 'r': 18, 'c0': 17, 'c1': 21}, {'kind': 'hline', 'r': 18, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 18, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 18, 'c0': 43, 'c1': 46}, {'kind': 'hline', 'r': 18, 'c0': 48, 'c1': 56}, {'kind': 'hline', 'r': 18, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 19, 'c0': 8, 'c1': 8}, {'kind': 'hline', 'r': 19, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 19, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 19, 'c0': 43, 'c1': 43}, {'kind': 'hline', 'r': 19, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 20, 'c0': 8, 'c1': 11}, {'kind': 'hline', 'r': 20, 'c0': 13, 'c1': 13}, {'kind': 'hline', 'r': 20, 'c0': 15, 'c1': 15}, {'kind': 'hline', 'r': 20, 'c0': 17, 'c1': 17}, {'kind': 'hline', 'r': 20, 'c0': 19, 'c1': 19}, {'kind': 'hline', 'r': 20, 'c0': 21, 'c1': 21}, {'kind': 'hline', 'r': 20, 'c0': 23, 'c1': 23}, {'kind': 'hline', 'r': 20, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 20, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 20, 'c0': 43, 'c1': 46}, {'kind': 'hline', 'r': 20, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 20, 'c0': 50, 'c1': 50}, {'kind': 'hline', 'r': 20, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 20, 'c0': 54, 'c1': 54}, {'kind': 'hline', 'r': 20, 'c0': 56, 'c1': 56}, {'kind': 'hline', 'r': 20, 'c0': 58, 'c1': 58}, {'kind': 'hline', 'r': 20, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 21, 'c0': 11, 'c1': 11}, {'kind': 'hline', 'r': 21, 'c0': 13, 'c1': 23}, {'kind': 'hline', 'r': 21, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 21, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 21, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 21, 'c0': 48, 'c1': 58}, {'kind': 'hline', 'r': 21, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 22, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 22, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 22, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 22, 'c0': 58, 'c1': 58}, {'kind': 'hline', 'r': 22, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 23, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 23, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 23, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 23, 'c0': 58, 'c1': 58}, {'kind': 'hline', 'r': 23, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 24, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 24, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 24, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 24, 'c0': 58, 'c1': 58}, {'kind': 'hline', 'r': 24, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 25, 'c0': 11, 'c1': 11}, {'kind': 'hline', 'r': 25, 'c0': 13, 'c1': 23}, {'kind': 'hline', 'r': 25, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 25, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 25, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 25, 'c0': 48, 'c1': 58}, {'kind': 'hline', 'r': 25, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 26, 'c0': 11, 'c1': 11}, {'kind': 'hline', 'r': 26, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 26, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 26, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 26, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 27, 'c0': 11, 'c1': 11}, {'kind': 'hline', 'r': 27, 'c0': 13, 'c1': 13}, {'kind': 'hline', 'r': 27, 'c0': 15, 'c1': 15}, {'kind': 'hline', 'r': 27, 'c0': 17, 'c1': 17}, {'kind': 'hline', 'r': 27, 'c0': 19, 'c1': 19}, {'kind': 'hline', 'r': 27, 'c0': 21, 'c1': 21}, {'kind': 'hline', 'r': 27, 'c0': 23, 'c1': 23}, {'kind': 'hline', 'r': 27, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 27, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 27, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 27, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 27, 'c0': 50, 'c1': 50}, {'kind': 'hline', 'r': 27, 'c0': 52, 'c1': 52}, {'kind': 'hline', 'r': 27, 'c0': 54, 'c1': 54}, {'kind': 'hline', 'r': 27, 'c0': 56, 'c1': 56}, {'kind': 'hline', 'r': 27, 'c0': 58, 'c1': 58}, {'kind': 'hline', 'r': 27, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 28, 'c0': 11, 'c1': 11}, {'kind': 'hline', 'r': 28, 'c0': 13, 'c1': 23}, {'kind': 'hline', 'r': 28, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 28, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 28, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 28, 'c0': 48, 'c1': 58}, {'kind': 'hline', 'r': 28, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 29, 'c0': 11, 'c1': 11}, {'kind': 'hline', 'r': 29, 'c0': 13, 'c1': 13}, {'kind': 'hline', 'r': 29, 'c0': 23, 'c1': 23}, {'kind': 'hline', 'r': 29, 'c0': 25, 'c1': 25}, {'kind': 'hline', 'r': 29, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 29, 'c0': 46, 'c1': 46}, {'kind': 'hline', 'r': 29, 'c0': 48, 'c1': 48}, {'kind': 'hline', 'r': 29, 'c0': 58, 'c1': 58}, {'kind': 'hline', 'r': 29, 'c0': 60, 'c1': 60}, {'kind': 'hline', 'r': 30, 'c0': 11, 'c1': 13}, {'kind': 'hline', 'r': 30, 'c0': 23, 'c1': 25}, {'kind': 'hline', 'r': 30, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 30, 'c0': 46, 'c1': 48}, {'kind': 'hline', 'r': 30, 'c0': 58, 'c1': 60}, {'kind': 'hline', 'r': 31, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 32, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 33, 'c0': 33, 'c1': 33}, {'kind': 'hline', 'r': 34, 'c0': 33, 'c1': 33}, {'kind': 'vline', 'c': 8, 'r0': 9, 'r1': 12}, {'kind': 'vline', 'c': 8, 'r0': 18, 'r1': 20}, {'kind': 'vline', 'c': 9, 'r0': 16, 'r1': 18}, {'kind': 'vline', 'c': 11, 'r0': 8, 'r1': 9}, {'kind': 'vline', 'c': 11, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 11, 'r0': 25, 'r1': 30}, {'kind': 'vline', 'c': 13, 'r0': 8, 'r1': 9}, {'kind': 'vline', 'c': 13, 'r0': 16, 'r1': 18}, {'kind': 'vline', 'c': 13, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 13, 'r0': 27, 'r1': 30}, {'kind': 'vline', 'c': 15, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 15, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 17, 'r0': 9, 'r1': 12}, {'kind': 'vline', 'c': 17, 'r0': 16, 'r1': 18}, {'kind': 'vline', 'c': 17, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 17, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 19, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 19, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 21, 'r0': 16, 'r1': 18}, {'kind': 'vline', 'c': 21, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 21, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 23, 'r0': 15, 'r1': 17}, {'kind': 'vline', 'c': 23, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 23, 'r0': 27, 'r1': 30}, {'kind': 'vline', 'c': 25, 'r0': 15, 'r1': 21}, {'kind': 'vline', 'c': 25, 'r0': 25, 'r1': 30}, {'kind': 'vline', 'c': 33, 'r0': 0, 'r1': 34}, {'kind': 'vline', 'c': 43, 'r0': 9, 'r1': 12}, {'kind': 'vline', 'c': 43, 'r0': 18, 'r1': 20}, {'kind': 'vline', 'c': 44, 'r0': 12, 'r1': 18}, {'kind': 'vline', 'c': 46, 'r0': 8, 'r1': 9}, {'kind': 'vline', 'c': 46, 'r0': 12, 'r1': 14}, {'kind': 'vline', 'c': 46, 'r0': 16, 'r1': 18}, {'kind': 'vline', 'c': 46, 'r0': 20, 'r1': 30}, {'kind': 'vline', 'c': 48, 'r0': 8, 'r1': 9}, {'kind': 'vline', 'c': 48, 'r0': 12, 'r1': 14}, {'kind': 'vline', 'c': 48, 'r0': 16, 'r1': 18}, {'kind': 'vline', 'c': 48, 'r0': 20, 'r1': 25}, {'kind': 'vline', 'c': 48, 'r0': 27, 'r1': 30}, {'kind': 'vline', 'c': 50, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 50, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 52, 'r0': 9, 'r1': 18}, {'kind': 'vline', 'c': 52, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 52, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 54, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 54, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 56, 'r0': 16, 'r1': 18}, {'kind': 'vline', 'c': 56, 'r0': 20, 'r1': 21}, {'kind': 'vline', 'c': 56, 'r0': 27, 'r1': 28}, {'kind': 'vline', 'c': 58, 'r0': 15, 'r1': 17}, {'kind': 'vline', 'c': 58, 'r0': 20, 'r1': 25}, {'kind': 'vline', 'c': 58, 'r0': 27, 'r1': 30}, {'kind': 'vline', 'c': 60, 'r0': 15, 'r1': 30}]
+
 
 W = COLS * CELL + (COLS + 1) * MARGIN
 H = ROWS * CELL + (ROWS + 1) * MARGIN
@@ -75,31 +55,61 @@ screen = pygame.display.set_mode((W, H + 40))
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("Arial", 16)
 
-def main():
-    # ---------- 상태 ----------
+def auto_replan(blocked, agent_pos, goals, fire_cells, planner, ROWS, COLS, exclude_goal_idx=None):
+    best_idx, best_goal, best_len = choose_best_goal(blocked, agent_pos, goals, ROWS, COLS, fire_cells)
+    if best_goal is not None and best_len < float('inf'):
+        if planner and best_goal == planner.goal:
+            planner.update_start(agent_pos)
+            return best_idx, planner, planner.compute_generator()
+        new_planner = DStarLite(blocked, agent_pos, best_goal, ROWS, COLS)
+        if fire_cells:
+            for f_pos in fire_cells:
+                new_planner.update_map_change(f_pos, True)
+        plan_gen = new_planner.compute_generator()
+        return best_idx, new_planner, plan_gen
+    return None, None, None
+
+def reset_all():
     blocked = build_blocked_with_presets(ROWS, COLS, PRESET_WALLS)
-    start = (ROWS // 2, 2)  # 고정된 시작점
-    agent_pos = start  # 에이전트의 현재 위치
-    fire_cells = []  # 불의 위치를 리스트로 관리 (여러 개 가능)
-
-    goals = PRESET_GOALS[:]  # Multiple goals
-    selected_goal_idx = 0  # Index of the goal to move in edit mode (cycle with G)
-    active_goal_idx = None  # Index of the goal actually selected (closest)
-
-    mode = 1  # 1: start, 2: goal-edit, 3: fire, 4: obstacle
-    planning = False
+    goals = PRESET_GOALS[:]
+    fire_cells = []
+    start = PRESET_START
+    agent_pos = start
     planner = None
     plan_gen = None
+    planning = False
+    auto_planning = False
     path = []
+    active_goal_idx = None
+    selected_goal_idx = 0
+    mode = 1
     step_timer = 0.0
-    dragging = False
-
     fire_step_timer = 0.0
-    FIRE_STEP_INTERVAL = 1.0  # 불이 1.0초마다 퍼짐
+    replan_check_timer = 0.0
+    periodic_replan_timer = 0.0
+    dragging = False
+    return (blocked, goals, fire_cells, start, agent_pos,
+            planner, plan_gen, planning, auto_planning, path,
+            active_goal_idx, selected_goal_idx, mode,
+            step_timer, fire_step_timer, replan_check_timer, periodic_replan_timer,
+            dragging)
+
+def main():
+    (blocked, goals, fire_cells, start, agent_pos,
+     planner, plan_gen, planning, auto_planning, path,
+     active_goal_idx, selected_goal_idx, mode,
+     step_timer, fire_step_timer, replan_check_timer, periodic_replan_timer,
+     dragging) = reset_all()
+
+    FIRE_STEP_INTERVAL = 1.0
+    skip_frame = False  # <-- 핵심 플래그
 
     running = True
     while running:
         dt = clock.tick(FPS) / 1000.0
+        skip_frame = False  # 프레임 시작 시 초기화
+
+        # ===== 이벤트 처리 =====
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 running = False
@@ -116,197 +126,254 @@ def main():
                     mode = 3
                 elif e.key == pygame.K_4:
                     mode = 4
-                                        
+
                 elif e.key == pygame.K_g:
-                    # Cycle through the goal indices for editing
                     if goals:
                         selected_goal_idx = (selected_goal_idx + 1) % len(goals)
 
                 elif e.key == pygame.K_SPACE:
-                    # Auto-select the closest goal → prepare D* Lite
-                    best_idx, best_goal, _ = choose_best_goal(blocked, agent_pos, goals, ROWS, COLS, fire_cells)
-                    active_goal_idx = best_idx
-                    if best_goal is not None:
-                        planner = DStarLite(blocked, agent_pos, best_goal, ROWS, COLS)
-                        if fire_cells:
-                            for f_pos in fire_cells:
-                                planner.update_map_change(f_pos, True)
-                        plan_gen = planner.compute_generator()
-                        planning = True
-                        path = []
-                        step_timer = 0.0
-                    else:
-                        planning = False
-                        plan_gen = None
-                        path = []
-                
-                # C 키: 전체 리셋
-                elif e.key == pygame.K_c:
-                    print("전체 리셋합니다.")
-                    blocked = build_blocked_with_presets(ROWS, COLS, PRESET_WALLS)
-                    goals = PRESET_GOALS[:]
-                    fire_cells = []
-                    
-                    planner = None
-                    plan_gen = None
-                    planning = False
-                    path = []
-                    active_goal_idx = None
-                    agent_pos = start
-                    step_timer = 0.0
-
-                # R 키: 불만 지우고 에이전트 위치 초기화
-                elif e.key == pygame.K_r:
-                    print("불을 지우고 에이전트 위치를 초기화합니다.")
-                    # 불이 있던 위치의 blocked 상태를 False로 되돌리기
-                    for f_pos in fire_cells:
-                        blocked[f_pos[0]][f_pos[1]] = False
-                    fire_cells = []
-                    
-                    # 에이전트 위치 초기화
-                    agent_pos = start
-                    
-                    planner = None
-                    plan_gen = None
-                    planning = False
-                    path = []
-                    step_timer = 0.0
-                    active_goal_idx = None
-                    
-            elif e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                rc = cell_at_pos(*e.pos, H, CELL, MARGIN, ROWS, COLS)
-                if rc:
-                    r, c = rc
-                    if mode == 1 and not blocked[r][c] and (r, c) not in fire_cells:
-                        agent_pos = (r, c)
-                        start = (r, c) # 시작점도 함께 변경
-                    elif mode == 2 and not blocked[r][c] and goals and (r, c) not in fire_cells:
-                        # Move the selected goal to the current square
-                        goals[selected_goal_idx] = (r, c)
-                    elif mode == 3 and (r, c) != agent_pos and (r, c) not in goals:
-                        if (r, c) in fire_cells:
-                            # 불 제거
-                            fire_cells.remove((r, c))
-                            blocked[r][c] = False
-                            if planning:
-                                planner.update_map_change((r, c), False)
-                                plan_gen = planner.compute_generator()
-                        elif not blocked[r][c]:
-                            # 불 추가
-                            fire_cells.append((r, c))
-                            blocked[r][c] = True
-                            if planning:
-                                planner.update_map_change((r, c), True)
-                                plan_gen = planner.compute_generator()
-                    elif mode == 4:
-                        if (r, c) in fire_cells:
-                            pass # 불 객체는 벽으로 막을 수 없음
-                        else:
-                            is_blocked_before = blocked[r][c]
-                            blocked[r][c] = not blocked[r][c]
-                            dragging = True
-                            if planning:
-                                planner.update_map_change((r, c), blocked[r][c])
-                                plan_gen = planner.compute_generator()
-
-        # 불 객체 이동 로직
-        if fire_cells and planning:
-            fire_step_timer += dt
-            if fire_step_timer >= FIRE_STEP_INTERVAL:
-                fire_step_timer -= FIRE_STEP_INTERVAL
-                
-                # 한 번에 모든 불의 인접 칸으로 퍼짐
-                new_fire_cells = spread_fire(fire_cells, blocked, ROWS, COLS)
-                if new_fire_cells:
-                    # 새로운 불들을 리스트에 추가하고 D* Lite 플래너에 알림
-                    for f_pos in new_fire_cells:
-                        if f_pos not in fire_cells and not blocked[f_pos[0]][f_pos[1]]:
-                            fire_cells.append(f_pos)
-                            blocked[f_pos[0]][f_pos[1]] = True
-                            planner.update_map_change(f_pos, True)
-                    
-                    # 불이 퍼졌으므로 최적 경로 재계획
-                    planner.update_start(agent_pos)
-                    plan_gen = planner.compute_generator()
-
-        # ---- D* Lite를 프레임마다 조금씩 실행 ----
-        if planning and plan_gen is not None:
-            steps = 0
-            try:
-                while steps < PLANNER_STEPS_PER_FRAME:
-                    next(plan_gen)
-                    steps += 1
-            except StopIteration:
-                path = planner.get_path()
-                plan_gen = None
-                step_timer = 0.0
-        
-        # ---- 0.3초마다 '한 칸' 전진 ----
-        if planning and path:
-            if agent_pos == path[-1]:
-                planning = False
-            else:
-                step_timer += dt
-                if step_timer >= STEP_INTERVAL:
-                    step_timer -= STEP_INTERVAL
-                    # 현재 위치가 경로의 어디인지
-                    try:
-                        idx = path.index(agent_pos)
-                        # 다음 칸이 장애물이 됐는지 확인하고, 그렇다면 즉시 재계획
-                        if idx + 1 < len(path) and blocked[path[idx+1][0]][path[idx+1][1]]:
-                            print("경로가 막혔습니다. 재계획 중...")
-                            # 현재 위치에서 재계획을 시작
-                            planner.update_start(agent_pos)
-                            plan_gen = planner.compute_generator()
-                            path = []
-                            step_timer = 0.0
-                            continue # 다음 루프를 즉시 시작해서 움직이지 않게 함
-                    except ValueError:
-                        # 경로 이탈 → 재계획
-                        best_idx, best_goal, _ = choose_best_goal(blocked, agent_pos, goals, ROWS, COLS, fire_cells)
-                        active_goal_idx = best_idx
-                        if best_goal is not None:
-                            planner = DStarLite(blocked, agent_pos, best_goal, ROWS, COLS)
-                            if fire_cells:
-                                for f_pos in fire_cells:
-                                    planner.update_map_change(f_pos, True)
-                            plan_gen = planner.compute_generator()
+                    if not auto_planning:
+                        auto_planning = True
+                        active_goal_idx, planner, plan_gen = auto_replan(
+                            blocked, agent_pos, goals, fire_cells, planner, ROWS, COLS
+                        )
+                        if planner is not None:
+                            planning = True
                             path = []
                             step_timer = 0.0
                         else:
                             planning = False
                             plan_gen = None
                             path = []
-                    
-                    # 경로에 문제가 없다면 한 칸 전진
-                    if path:
-                        nxt = path[idx + 1] if idx + 1 < len(path) else path[-1]
-                        if nxt in fire_cells:
-                            # 다음 위치가 불이라면 이동하지 않고 재계획
-                            print("불이 경로에 나타났습니다. 재계획 중...")
-                            planner.update_start(agent_pos)
+                            print("현재 도달 가능한 목표가 없습니다. 자동 재탐색 대기...")
+                        print("자동 계획 모드: ON")
+                    else:
+                        auto_planning = False
+                        planning = False
+                        plan_gen = None
+                        path = []
+                        active_goal_idx = None
+                        print("자동 계획 모드: OFF")
+
+                elif e.key == pygame.K_c:
+                    print("전체 리셋합니다.")
+                    (blocked, goals, fire_cells, start, agent_pos,
+                     planner, plan_gen, planning, auto_planning, path,
+                     active_goal_idx, selected_goal_idx, mode,
+                     step_timer, fire_step_timer, replan_check_timer, periodic_replan_timer,
+                     dragging) = reset_all()
+                    skip_frame = True  # 이 프레임의 나머지를 건너뜀
+
+                elif e.key == pygame.K_r:
+                    print("불을 지우고 에이전트 위치를 초기화합니다.")
+                    for f_pos in fire_cells:
+                        blocked[f_pos[0]][f_pos[1]] = False
+                    fire_cells = []
+                    agent_pos = start
+                    if auto_planning:
+                        if active_goal_idx is not None:
+                            planner = DStarLite(blocked, agent_pos, goals[active_goal_idx], ROWS, COLS)
                             plan_gen = planner.compute_generator()
+                            planning = True
                             path = []
                             step_timer = 0.0
-                            continue
-                        agent_pos = nxt
-                        # D* Lite 시작점 업데이트(증분성 유지)
-                        planner.update_start(agent_pos)
-                        # 움직였으니 최신 경로 재구성(장애물 변화 대비)
-                        plan_gen = planner.compute_generator()
-                        # 경로가 빨리 갱신되도록 약간만 더 돌려줌
-                        try:
-                            for _ in range(60):
-                                next(plan_gen)
-                        except StopIteration:
-                            path = planner.get_path()
-                            plan_gen = None
+                            print(f"기존 목표 {active_goal_idx + 1}로 재계획합니다.")
+                        else:
+                            active_goal_idx, planner, plan_gen = auto_replan(
+                                blocked, agent_pos, goals, fire_cells, planner, ROWS, COLS
+                            )
+                            if planner is not None:
+                                planning = True
+                                path = []
+                                step_timer = 0.0
+                            else:
+                                planning = False
+                                plan_gen = None
+                                path = []
+                    else:
+                        planner = None
+                        plan_gen = None
+                        planning = False
+                        path = []
+                        step_timer = 0.0
+                        active_goal_idx = None
 
+            elif e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                rc = cell_at_pos(*e.pos, H, CELL, MARGIN, ROWS, COLS)
+                if rc:
+                    r, c = rc
+                    map_changed = False
+                    if mode == 1 and not blocked[r][c] and (r, c) not in fire_cells:
+                        agent_pos = (r, c); start = (r, c); map_changed = True
+                    elif mode == 2 and not blocked[r][c] and goals and (r, c) not in fire_cells:
+                        goals[selected_goal_idx] = (r, c); map_changed = True
+                    elif mode == 3 and (r, c) != agent_pos and (r, c) not in goals:
+                        if (r, c) in fire_cells:
+                            fire_cells.remove((r, c))
+                            if planner: planner.update_map_change((r, c), False)
+                            print("불 제거 → 재평가")
+                        elif not blocked[r][c]:
+                            fire_cells.append((r, c))
+                            if planner: planner.update_map_change((r, c), True)
+                            print("불 추가 → 재계획")
+                        map_changed = True
+                    elif mode == 4:
+                        if (r, c) not in fire_cells:
+                            blocked[r][c] = not blocked[r][c]
+                            if planner: planner.update_map_change((r, c), blocked[r][c])
+                            dragging = True; map_changed = True
+                    if map_changed and auto_planning and planner:
+                        path = []; plan_gen = planner.compute_generator(); planning = True; step_timer = 0.0
+
+            elif e.type == pygame.MOUSEBUTTONUP and e.button == 1:
+                dragging = False
+
+            elif e.type == pygame.MOUSEMOTION and dragging and mode == 4:
+                rc = cell_at_pos(*e.pos, H, CELL, MARGIN, ROWS, COLS)
+                if rc:
+                    r, c = rc
+                    if not blocked[r][c] and (r, c) not in fire_cells:
+                        blocked[r][c] = True
+                        if planner: planner.update_map_change((r, c), True)
+                        if auto_planning and planner:
+                            path = []; plan_gen = planner.compute_generator(); planning = True; step_timer = 0.0
+
+        # ---- 여기서 프레임 건너뛰기 처리 ----
+        if skip_frame:
+            draw_all(
+                screen, blocked, path, goals, start, agent_pos, active_goal_idx, selected_goal_idx, fire_cells,
+                mode, auto_planning, ROWS, COLS, CELL, MARGIN,
+                BG, GRID, WALL, GOAL_COLORS, START_COLOR, PATH_COLOR, AGENT_COLOR, FIRE_COLOR, TEXT_COLOR,
+                W, H, font
+            )
+            continue  # while 루프의 다음 프레임으로
+
+        # ===== 불 확산 =====
+        if fire_cells and auto_planning:
+            fire_step_timer += dt
+            if fire_step_timer >= FIRE_STEP_INTERVAL:
+                fire_step_timer -= FIRE_STEP_INTERVAL
+                new_fire_cells = spread_fire(fire_cells, blocked, ROWS, COLS)
+                if new_fire_cells:
+                    changed = False
+                    path_set = set(path) if path else set()
+                    for f_pos in new_fire_cells:
+                        r, c = f_pos
+                        if f_pos not in fire_cells and not blocked[r][c]:
+                            fire_cells.append(f_pos); blocked[r][c] = True; changed = True
+                            if planner: planner.update_map_change(f_pos, True)
+                    intersects_path = any((f in path_set) for f in new_fire_cells)
+                    next_blocked = False
+                    if path:
+                        try:
+                            pi = path.index(agent_pos)
+                            if pi + 1 < len(path):
+                                nxt = path[pi + 1]; next_blocked = nxt in new_fire_cells
+                        except ValueError:
+                            pass
+                    if changed:
+                        if planner:
+                            if intersects_path or next_blocked:
+                                plan_gen = planner.compute_generator(); planning = True; path = []
+                                print("불 확산 영향 → 재계획!")
+                        else:
+                            active_goal_idx, planner, plan_gen = auto_replan(
+                                blocked, agent_pos, goals, fire_cells, None, ROWS, COLS
+                            )
+                            if planner is not None:
+                                planning = True; path = []; print("불 확산 → 초기 경로 계획!")
+
+        # ===== 자동 재탐색 / 주기적 최적 경로 재검토 =====
+        if auto_planning and not planning:
+            replan_check_timer += dt
+            if replan_check_timer >= REPLAN_CHECK_INTERVAL:
+                replan_check_timer = 0.0
+                active_goal_idx, planner, plan_gen = auto_replan(
+                    blocked, agent_pos, goals, fire_cells, planner, ROWS, COLS
+                )
+                if planner is not None:
+                    planning = True; path = []; step_timer = 0.0
+                    print("주기적 탐색 → 경로 발견!")
+
+        if auto_planning and planning:
+            periodic_replan_timer += dt
+            if periodic_replan_timer >= REPLAN_PERIODIC_CHECK:
+                periodic_replan_timer = 0.0
+                new_active_idx, new_planner, new_plan_gen = auto_replan(
+                    blocked, agent_pos, goals, fire_cells, planner, ROWS, COLS
+                )
+                if new_planner is not None and new_active_idx != active_goal_idx:
+                    active_goal_idx = new_active_idx; planner = new_planner; plan_gen = new_plan_gen; path = []
+                    print(f"더 가까운 목표 {active_goal_idx + 1}로 전환")
+
+        # ===== 계획 실행 =====
+        if planning and plan_gen is not None:
+            steps = 0
+            try:
+                while steps < PLANNER_STEPS_PER_FRAME:
+                    next(plan_gen); steps += 1
+            except StopIteration:
+                path = planner.get_path(); plan_gen = None
+                if not path and auto_planning:
+                    print(f"목표 {active_goal_idx + 1 if active_goal_idx is not None else '?'} 실패 → 다른 목표")
+                    new_active_idx, new_planner, new_plan_gen = auto_replan(
+                        blocked, agent_pos, goals, fire_cells, None, ROWS, COLS
+                    )
+                    if new_planner is not None:
+                        active_goal_idx = new_active_idx; planner = new_planner; plan_gen = new_plan_gen; path = []
+                        print(f"새 목표 {new_active_idx + 1}로 전환")
+                    else:
+                        print("도달 가능한 목표 없음 → 대기"); planning = False
+                step_timer = 0.0
+
+        # ===== 에이전트 이동 =====
+        if planning and path and auto_planning:
+            if agent_pos == path[-1]:
+                print("목표 도달 → 정지"); planning = False; path = []
+            else:
+                step_timer += dt
+                if step_timer >= STEP_INTERVAL:
+                    step_timer -= STEP_INTERVAL
+                    replan_needed = False
+                    try:
+                        current_path_idx = path.index(agent_pos)
+                    except ValueError:
+                        print("경로 이탈 → 재계획"); replan_needed = True
+                        current_path_idx = -1
+                    if not replan_needed and current_path_idx + 1 >= len(path):
+                        print("경로 끝 → 재계획"); replan_needed = True
+                    if not replan_needed:
+                        next_pos = path[current_path_idx + 1]
+                        if blocked[next_pos[0]][next_pos[1]]:
+                            print("다음 칸 막힘 → 재계획"); replan_needed = True
+                    if replan_needed:
+                        if planner:
+                            planner.update_start(agent_pos); plan_gen = planner.compute_generator(); path = []
+                        else:
+                            active_goal_idx, planner, plan_gen = auto_replan(
+                                blocked, agent_pos, goals, fire_cells, None, ROWS, COLS
+                            )
+                        if planner and planner.get_path():
+                            path = planner.get_path(); print("우회 경로 찾음")
+                        else:
+                            print("기존 목표 막힘 → 다른 목표 탐색")
+                            active_goal_idx, planner, plan_gen = auto_replan(
+                                blocked, agent_pos, goals, fire_cells, None, ROWS, COLS
+                            )
+                            if planner:
+                                path = planner.get_path(); print(f"새 목표 {active_goal_idx + 1} 전환")
+                            else:
+                                planning = False; path = []; print("우회/새 경로 실패")
+                        step_timer = 0.0
+                    else:
+                        agent_pos = path[current_path_idx + 1]
+                        if planner: planner.update_start(agent_pos)
+
+        # ===== 렌더링 =====
         draw_all(
             screen, blocked, path, goals, start, agent_pos, active_goal_idx, selected_goal_idx, fire_cells,
-            mode, ROWS, COLS, CELL, MARGIN,
-            BG, GRID, WALL,
-            GOAL_COLORS, START_COLOR, PATH_COLOR, AGENT_COLOR, FIRE_COLOR, TEXT_COLOR,
+            mode, auto_planning, ROWS, COLS, CELL, MARGIN,
+            BG, GRID, WALL, GOAL_COLORS, START_COLOR, PATH_COLOR, AGENT_COLOR, FIRE_COLOR, TEXT_COLOR,
             W, H, font
         )
 
